@@ -89,8 +89,8 @@ extern Account* account_list_head;
 
 // Blockchain Extension Function Prototypes
 void init_accounts(); 
-void process_reward_utxo(const char* student_id, int reward, char* out_tx_id);
-void process_reward_account(const char* student_id, int reward, char* out_tx_id);
+void process_reward_utxo(const char* student_id, int reward, const char* out_tx_id);
+void process_reward_account(const char* student_id, int reward, const char* out_tx_id);
 void print_utxo_set();
 void print_account_balances();
 
