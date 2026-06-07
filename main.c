@@ -10,16 +10,14 @@ void clear_input_buffer() {
 
 int main() {
     printf("====================================================\n");
-    printf("   BLOCKCHAIN ATTENDANCE SYSTEM INITIALIZATION\n");
+    printf("   TOKENIZED BLOCKCHAIN ATTENDANCE INITIALIZATION\n");
     printf("====================================================\n");
 
-    // 1. Load Registry
+    // 1. Load Registry & Initialize Ledgers
     if (!load_students("students.txt")) {
         printf("\n[FATAL] System halted. Please ensure students.txt exists.\n");
         return 1; 
     }
-
-    // Initialize the in-memory account ledgers for all loaded students
     init_accounts();
 
     // 2. Generate Cryptographic Keys
@@ -34,19 +32,42 @@ int main() {
         sign_block(blockchain_head);
     }
 
+    // --- SESSION CONFIGURATION ---
+    printf("\n=== CONFIGURE SESSION ===\n");
+    printf("Select Transaction Ledger Model:\n");
+    printf("1. UTXO Model\n");
+    printf("2. Account-Based Model\n");
+    printf("Choice (1 or 2): ");
+    if (scanf("%d", &active_ledger_model) != 1 || (active_ledger_model != 1 && active_ledger_model != 2)) {
+        active_ledger_model = 1; // Default fallback
+    }
+    clear_input_buffer();
+    printf("-> System set to use %s Model.\n", (active_ledger_model == 1) ? "UTXO" : "Account-Based");
+
+    printf("\nSet Mining Difficulty (1 to 4): ");
+    if (scanf("%d", &mining_difficulty) != 1 || mining_difficulty < 1 || mining_difficulty > 4) {
+        mining_difficulty = 2; // Default fallback
+    }
+    clear_input_buffer();
+    printf("-> PoW target set to %d leading zeros.\n", mining_difficulty);
+
     int choice;
     char input_id[20], input_course[10], input_status[10];
 
     // --- MAIN CLI LOOP ---
     while (1) {
-        printf("\n================ MAIN MENU ================\n");
-        printf("1. Mark Attendance\n");
-        printf("2. View Attendance Ledger\n");
-        printf("3. Validate Blockchain Integrity\n");
-        printf("4. Simulate Malicious Tampering\n");
-        printf("5. Exit System\n");
-        printf("===========================================\n");
-        printf("Select an option (1-5): ");
+        printf("\n==================== MAIN MENU ====================\n");
+        printf(" 1. Mark Attendance (Sends to Pending Pool)\n");
+        printf(" 2. View Pending Pool Status\n");
+        printf(" 3. MINE: Solo (Confirm pending blocks)\n");
+        printf(" 4. MINE: Pool Simulation\n");
+        printf(" 5. MINE: Cloud Rental Simulation\n");
+        printf(" 6. View Confirmed Attendance Ledger\n");
+        printf(" 7. View Token Balances (UTXO / Account)\n");
+        printf(" 8. Validate Blockchain Integrity\n");
+        printf(" 9. Exit System\n");
+        printf("===================================================\n");
+        printf("Select an option (1-9): ");
         
         if (scanf("%d", &choice) != 1) {
             clear_input_buffer();
@@ -65,36 +86,48 @@ int main() {
                 printf("Enter Status (PRESENT/ABSENT/LATE): ");
                 scanf("%9s", input_status);
                 
-                if (mark_attendance(input_id, input_course, input_status) == 1) {
-                    save_chain();
-                }
+                mark_attendance(input_id, input_course, input_status);
                 break;
 
             case 2:
-                view_records();
+                view_pending_pool();
                 break;
 
             case 3:
-                validate_chain();
+                mine_solo();
                 break;
 
-            case 4: {
-                int target;
-                char fake_status[10];
-                printf("\n--- Tamper Simulation ---\n");
-                printf("Enter the Block Index to hack: ");
-                scanf("%d", &target);
-                printf("Enter the fake status to inject: ");
-                scanf("%9s", fake_status);
-                
-                tamper_block(target, fake_status);
-                // We do NOT save_chain() here, so the hack only lives in RAM
+            case 4:
+                mine_pool();
+                break;
+
+            case 5: {
+                int rounds;
+                printf("\nEnter number of rental rounds (1-5): ");
+                scanf("%d", &rounds);
+                mine_cloud(rounds);
                 break;
             }
 
-            case 5:
+            case 6:
+                view_records();
+                break;
+
+            case 7:
+                if (active_ledger_model == 1) {
+                    print_utxo_set();
+                } else {
+                    print_account_balances();
+                }
+                break;
+
+            case 8:
+                validate_chain();
+                break;
+
+            case 9:
                 printf("\nSaving final state and shutting down securely...\n");
-                save_chain();
+                save_chain(); // Saves the confirmed chain to disk
                 printf("Goodbye!\n");
                 return 0;
 

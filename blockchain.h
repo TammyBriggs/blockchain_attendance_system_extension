@@ -128,4 +128,6 @@ void mine_solo();
 void mine_pool();
 void mine_cloud(int rental_rounds);
 
+void view_pending_pool();
+
 #endif

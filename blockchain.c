@@ -697,3 +697,21 @@ void mine_cloud(int rental_rounds) {
         printf("\n[SUCCESS] Contract yielded a positive ROI.\n");
     }
 }
+
+// --- UI HELPER FUNCTIONS ---
+void view_pending_pool() {
+    printf("\n--- PENDING POOL (UNCONFIRMED TRANSACTIONS) ---\n");
+    if (pending_pool_head == NULL) {
+        printf("The pending pool is currently empty.\n");
+        return;
+    }
+    
+    PendingNode* current = pending_pool_head;
+    int count = 1;
+    while (current != NULL) {
+        printf("%d. Student: %-15s | ID: %-8s | Status: %-8s | Reward: %d tokens\n",
+               count++, current->full_name, current->student_id, current->status, current->token_reward);
+        current = current->next;
+    }
+    printf("-------------------------------------------------\n");
+}
