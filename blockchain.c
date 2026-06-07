@@ -5,6 +5,9 @@ Student registry[MAX_STUDENTS];
 int student_count = 0;
 Block* blockchain_head = NULL;
 PendingNode* pending_pool_head = NULL; // Mempool head
+int active_ledger_model = 1;
+UTXO* utxo_set_head = NULL;
+Account* account_list_head = NULL;
 
 // --- SEGMENT 1: STUDENT REGISTRY ---
 

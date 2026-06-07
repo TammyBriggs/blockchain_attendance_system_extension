@@ -48,6 +48,52 @@ typedef struct PendingNode {
     struct PendingNode* next;
 } PendingNode;
 
+// --- TRANSACTION LEDGER MODELS ---
+
+// Configuration variable to allow switching between models (1 = UTXO, 2 = Account)
+extern int active_ledger_model; 
+
+// ---------------------------------------------
+// 1. UTXO-Based Data Structures
+// ---------------------------------------------
+typedef struct UTXO {
+    char transaction_id[65]; // The hash of the transaction that created this output
+    char owner_id[20];       // Student ID that owns these tokens
+    int amount;              // Token value of this specific chunk
+    struct UTXO* next;
+} UTXO;
+
+extern UTXO* utxo_set_head;
+
+// ---------------------------------------------
+// 2. Account-Based Data Structures
+// ---------------------------------------------
+typedef struct TransactionRecord {
+    char sender_id[20];
+    char recipient_id[20];
+    int amount;
+    int fee;
+    int nonce;               // Prevents replay attacks
+    struct TransactionRecord* next;
+} TransactionRecord;
+
+typedef struct Account {
+    char student_id[20];
+    int balance;
+    int nonce;               // Increments with every outgoing transaction
+    TransactionRecord* history_head; // In-memory linked list of history
+    struct Account* next;
+} Account;
+
+extern Account* account_list_head;
+
+// Blockchain Extension Function Prototypes
+void init_accounts(); 
+void process_reward_utxo(const char* student_id, int reward, char* out_tx_id);
+void process_reward_account(const char* student_id, int reward, char* out_tx_id);
+void print_utxo_set();
+void print_account_balances();
+
 // Global Variables
 extern Student registry[MAX_STUDENTS];
 extern int student_count;
