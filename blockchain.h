@@ -122,4 +122,10 @@ void view_records();
 
 void add_to_pending_pool(const char* student_id, const char* full_name, const char* course_code, const char* status);
 
+extern int mining_difficulty;
+
+void mine_solo();
+void mine_pool();
+void mine_cloud(int rental_rounds);
+
 #endif

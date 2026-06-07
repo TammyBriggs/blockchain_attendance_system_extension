@@ -530,3 +530,170 @@ void view_records() {
         current = current->next;
     }
 }
+
+// --- PROOF OF WORK & MINING ---
+
+int mining_difficulty = 2; // Default difficulty level (can be adjusted 1-4)
+
+// Helper function to append a fully mined block to the chain
+void append_mined_block(Block* new_block) {
+    if (blockchain_head == NULL) {
+        blockchain_head = new_block;
+    } else {
+        Block* current = blockchain_head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = new_block;
+    }
+}
+
+void mine_solo() {
+    if (pending_pool_head == NULL) {
+        printf("\nPending pool is empty. No attendance blocks to mine.\n");
+        return;
+    }
+
+    printf("\n--- INITIATING SOLO MINING ---\n");
+    printf("Target Difficulty: %d leading zeros\n", mining_difficulty);
+
+    char target_prefix[10];
+    memset(target_prefix, '0', mining_difficulty);
+    target_prefix[mining_difficulty] = '\0';
+
+    int blocks_mined = 0;
+    int total_attempts = 0;
+
+    // Process the entire mempool
+    while (pending_pool_head != NULL) {
+        PendingNode* tx = pending_pool_head;
+        pending_pool_head = tx->next; // Dequeue from pending pool
+
+        // Find the current end of the chain to link the new block
+        Block* tail = blockchain_head;
+        while (tail->next != NULL) {
+            tail = tail->next;
+        }
+
+        // Allocate and populate the new block
+        Block* new_block = (Block*)malloc(sizeof(Block));
+        new_block->index = tail->index + 1;
+        new_block->timestamp = time(NULL);
+        strncpy(new_block->student_id, tx->student_id, 19);
+        strncpy(new_block->full_name, tx->full_name, 49);
+        strncpy(new_block->course_code, tx->course_code, 9);
+        strncpy(new_block->status, tx->status, 9);
+        new_block->token_reward = tx->token_reward;
+        strncpy(new_block->previous_hash, tail->hash, 64);
+        new_block->previous_hash[64] = '\0';
+        new_block->next = NULL;
+
+        // --- PROOF OF WORK LOOP ---
+        new_block->nonce = 0;
+        int block_attempts = 0;
+        do {
+            new_block->nonce++;
+            calculate_hash(new_block, new_block->hash);
+            block_attempts++;
+        } while (strncmp(new_block->hash, target_prefix, mining_difficulty) != 0);
+
+        // Sign the successfully mined block
+        sign_block(new_block);
+        
+        // Append to chain
+        append_mined_block(new_block);
+
+        // Process Ledger Rewards using the transaction ID (which is the block hash here)
+        strncpy(new_block->transaction_id, new_block->hash, 64);
+        new_block->transaction_id[64] = '\0';
+
+        if (active_ledger_model == 1) {
+            process_reward_utxo(new_block->student_id, new_block->token_reward, new_block->transaction_id);
+        } else {
+            process_reward_account(new_block->student_id, new_block->token_reward, new_block->transaction_id);
+        }
+
+        printf("Mined Block %d | Attempts: %d | Hash: %.15s...\n", new_block->index, block_attempts, new_block->hash);
+        
+        total_attempts += block_attempts;
+        blocks_mined++;
+        free(tx); // Free the pending node memory
+    }
+
+    printf("\n[SOLO MINING COMPLETE] Mined %d blocks using %d total hash attempts.\n", blocks_mined, total_attempts);
+}
+
+void mine_pool() {
+    // For pool simulation, we will run the PoW on the first pending block, 
+    // but split the credit among simulated network miners.
+    if (pending_pool_head == NULL) {
+        printf("\nPending pool is empty. No blocks to mine.\n");
+        return;
+    }
+
+    printf("\n--- INITIATING POOL MINING ---\n");
+    
+    // Simulate 3 miners with random hash rates
+    srand(time(NULL));
+    int miner1_attempts = rand() % 5000 + 1000;
+    int miner2_attempts = rand() % 5000 + 1000;
+    int miner3_attempts = rand() % 5000 + 1000;
+    int total_network_attempts = miner1_attempts + miner2_attempts + miner3_attempts;
+
+    // Simulate mining the block
+    mine_solo(); // We reuse the solo logic to actually do the cryptographic work on the pool
+
+    float block_reward_fiat = 50.0; // Simulated fiat value of a mined block
+    float pool_fee = block_reward_fiat * 0.02; // 2% pool fee per rubric
+    float distributable_reward = block_reward_fiat - pool_fee;
+
+    printf("\n--- POOL REWARD DISTRIBUTION TABLE ---\n");
+    printf("Total Network Hashes: %d | Pool Fee Deducted: 2%%\n", total_network_attempts);
+    printf("%-10s | %-10s | %-10s | %-10s\n", "Miner ID", "Attempts", "Share %", "Reward ($)");
+    printf("----------------------------------------------------\n");
+    
+    float share1 = (float)miner1_attempts / total_network_attempts;
+    printf("%-10s | %-10d | %-9.2f%% | $%-9.2f\n", "Miner 01", miner1_attempts, share1 * 100, share1 * distributable_reward);
+    
+    float share2 = (float)miner2_attempts / total_network_attempts;
+    printf("%-10s | %-10d | %-9.2f%% | $%-9.2f\n", "Miner 02", miner2_attempts, share2 * 100, share2 * distributable_reward);
+    
+    float share3 = (float)miner3_attempts / total_network_attempts;
+    printf("%-10s | %-10d | %-9.2f%% | $%-9.2f\n", "Miner 03", miner3_attempts, share3 * 100, share3 * distributable_reward);
+}
+
+void mine_cloud(int rental_rounds) {
+    printf("\n--- CLOUD MINING CONTRACT: %d ROUNDS ---\n", rental_rounds);
+    
+    if (rental_rounds < 1 || rental_rounds > 5) {
+        printf("Invalid contract duration. Must be between 1 and 5 rounds.\n");
+        return;
+    }
+
+    float rental_fee_per_round = 15.0; // Fixed cost
+    float total_fees = 0;
+    float gross_earnings = 0;
+
+    for (int i = 1; i <= rental_rounds; i++) {
+        total_fees += rental_fee_per_round;
+        
+        // Simulate fluctuating block rewards per round
+        float round_reward = (rand() % 20) + 5.0; 
+        gross_earnings += round_reward;
+
+        printf("Round %d | Fee Paid: $%.2f | Yield: $%.2f\n", i, rental_fee_per_round, round_reward);
+    }
+
+    float net_profit = gross_earnings - total_fees;
+    
+    printf("---------------------------------\n");
+    printf("Gross Earnings: $%.2f\n", gross_earnings);
+    printf("Total Fees:     $%.2f\n", total_fees);
+    printf("Net Profit:     $%.2f\n", net_profit);
+
+    if (net_profit < 0) {
+        printf("\n[WARNING] This cloud mining contract was UNPROFITABLE. You lost $%.2f.\n", net_profit * -1);
+    } else {
+        printf("\n[SUCCESS] Contract yielded a positive ROI.\n");
+    }
+}
