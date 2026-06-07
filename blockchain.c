@@ -224,6 +224,112 @@ void add_to_pending_pool(const char* student_id, const char* full_name, const ch
            new_node->full_name, new_node->student_id, new_node->token_reward);
 }
 
+// --- LEDGER MODEL LOGIC ---
+
+void process_reward_utxo(const char* student_id, int reward, const char* out_tx_id) {
+    if (reward <= 0) return;
+
+    int fee = 1; // System fee per rubric
+    int net_reward = reward - fee;
+
+    if (net_reward <= 0) return;
+
+    UTXO* new_utxo = (UTXO*)malloc(sizeof(UTXO));
+    if (!new_utxo) {
+        printf("ERROR: Memory allocation failed for UTXO.\n");
+        return;
+    }
+
+    strncpy(new_utxo->transaction_id, out_tx_id, sizeof(new_utxo->transaction_id) - 1);
+    strncpy(new_utxo->owner_id, student_id, sizeof(new_utxo->owner_id) - 1);
+    new_utxo->amount = net_reward;
+    
+    // Add to the head of the UTXO set
+    new_utxo->next = utxo_set_head;
+    utxo_set_head = new_utxo;
+
+    printf("UTXO Generated: %s received %d tokens (Fee: %d) | TX: %.15s...\n", 
+           student_id, net_reward, fee, out_tx_id);
+}
+
+void print_utxo_set() {
+    printf("\n--- CURRENT UTXO SET ---\n");
+    UTXO* current = utxo_set_head;
+    if (current == NULL) {
+        printf("UTXO Set is empty.\n");
+        return;
+    }
+    while (current != NULL) {
+        printf("Owner: %-10s | Amount: %2d | TX: %.15s...\n", 
+               current->owner_id, current->amount, current->transaction_id);
+        current = current->next;
+    }
+    printf("------------------------\n");
+}
+
+void init_accounts() {
+    // Populate the account list from the loaded registry on startup
+    for (int i = 0; i < student_count; i++) {
+        Account* new_acc = (Account*)malloc(sizeof(Account));
+        strncpy(new_acc->student_id, registry[i].student_id, sizeof(new_acc->student_id) - 1);
+        new_acc->balance = 0;
+        new_acc->nonce = 0;
+        new_acc->history_head = NULL;
+        
+        new_acc->next = account_list_head;
+        account_list_head = new_acc;
+    }
+    printf("SUCCESS: Account models initialized for %d students.\n", student_count);
+}
+
+void process_reward_account(const char* student_id, int reward, const char* out_tx_id) {
+    if (reward <= 0) return;
+
+    int fee = 1;
+    int net_reward = reward - fee;
+
+    if (net_reward <= 0) return;
+
+    // Find the account and update the balance
+    Account* current = account_list_head;
+    while (current != NULL) {
+        if (strcmp(current->student_id, student_id) == 0) {
+            current->balance += net_reward;
+            
+            // Log the transaction history in memory
+            TransactionRecord* tx = (TransactionRecord*)malloc(sizeof(TransactionRecord));
+            strcpy(tx->sender_id, "SYSTEM");
+            strcpy(tx->recipient_id, student_id);
+            tx->amount = net_reward;
+            tx->fee = fee;
+            tx->nonce = 0; // System reward doesn't increment the user's outgoing nonce
+            
+            tx->next = current->history_head;
+            current->history_head = tx;
+
+            printf("Account Credited: %s received %d tokens (Fee: %d). New Balance: %d\n", 
+                   student_id, net_reward, fee, current->balance);
+            return;
+        }
+        current = current->next;
+    }
+    printf("ERROR: Account not found for %s\n", student_id);
+}
+
+void print_account_balances() {
+    printf("\n--- ACCOUNT BALANCES ---\n");
+    Account* current = account_list_head;
+    if (current == NULL) {
+        printf("No accounts initialized.\n");
+        return;
+    }
+    while (current != NULL) {
+        printf("Student ID: %-10s | Balance: %d\n", current->student_id, current->balance);
+        current = current->next;
+    }
+    printf("------------------------\n");
+}
+
 // --- PUSH TO MEMPOOL ---
 int mark_attendance(const char* student_id, const char* course_code, const char* status) {
     // 1. Validate the Student ID against our loaded registry
