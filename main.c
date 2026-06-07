@@ -19,6 +19,9 @@ int main() {
         return 1; 
     }
 
+    // Initialize the in-memory account ledgers for all loaded students
+    init_accounts();
+
     // 2. Generate Cryptographic Keys
     generate_keypair();
 
