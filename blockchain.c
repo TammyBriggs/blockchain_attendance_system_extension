@@ -56,15 +56,17 @@ void calculate_hash(Block* block, char* output_hash) {
     char data[1024];
     unsigned char hash[SHA256_DIGEST_LENGTH];
 
-    // Concatenate block data for hashing
-    snprintf(data, sizeof(data), "%d%ld%s%s%s%s%s", 
+    // FIX: Concatenate block data for hashing, NOW INCLUDING token_reward and nonce
+    snprintf(data, sizeof(data), "%d%ld%s%s%s%s%s%d%d", 
             block->index, 
             block->timestamp, 
             block->student_id, 
             block->full_name, 
             block->course_code, 
             block->status, 
-            block->previous_hash);
+            block->previous_hash,
+            block->token_reward,
+            block->nonce);
 
     // Perform SHA-256 hash using OpenSSL
     SHA256((unsigned char*)data, strlen(data), hash);
@@ -92,12 +94,16 @@ void init_blockchain() {
     strcpy(genesis->course_code, "NONE");
     strcpy(genesis->status, "SYSTEM");
     
-    // previous_hash set to 64 zeros (Rubric Requirement)
+    // previous_hash set to 64 zeros (Requirement)
     memset(genesis->previous_hash, '0', 64);
     genesis->previous_hash[64] = '\0';
     
     // Zero out signature for now
     memset(genesis->signature, 0, 72);
+
+    // Initialize fields to prevent garbage memory hashes
+    genesis->token_reward = 0;
+    genesis->nonce = 0;
 
     // Calculate and set hash
     calculate_hash(genesis, genesis->hash);
