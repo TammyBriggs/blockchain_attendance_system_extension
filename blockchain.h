@@ -130,4 +130,8 @@ void mine_cloud(int rental_rounds);
 
 void view_pending_pool();
 
+// Manual Token Transfer & History
+int transfer_tokens(const char* sender_id, const char* recipient_id, int amount, int provided_nonce);
+void view_transaction_history(const char* student_id);
+
 #endif

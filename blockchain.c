@@ -336,6 +336,105 @@ void print_account_balances() {
     printf("------------------------\n");
 }
 
+int transfer_tokens(const char* sender_id, const char* recipient_id, int amount, int provided_nonce) {
+    if (active_ledger_model != 2) {
+        printf("ERROR: Manual transfers are only supported in the Account-Based Model.\n");
+        return 0;
+    }
+
+    Account* sender = NULL;
+    Account* recipient = NULL;
+    Account* current = account_list_head;
+
+    // Locate both accounts in the ledger
+    while (current != NULL) {
+        if (strcmp(current->student_id, sender_id) == 0) sender = current;
+        if (strcmp(current->student_id, recipient_id) == 0) recipient = current;
+        current = current->next;
+    }
+
+    if (!sender) { printf("ERROR: Sender %s not found.\n", sender_id); return 0; }
+    if (!recipient) { printf("ERROR: Recipient %s not found.\n", recipient_id); return 0; }
+    if (sender == recipient) { printf("ERROR: Cannot transfer to self.\n"); return 0; }
+
+    int fee = 1; // Standard network fee
+
+    // 1. NONCE VALIDATION (Replay Attack Prevention)
+    // The provided nonce must be exactly one higher than the current account nonce
+    int expected_nonce = sender->nonce + 1;
+    if (provided_nonce < expected_nonce) {
+        printf("ERROR: Transaction rejected. Nonce %d has been reused (Expected: %d).\n", provided_nonce, expected_nonce);
+        return 0;
+    } else if (provided_nonce > expected_nonce) {
+        printf("ERROR: Transaction rejected. Nonce %d is out of sequence (Expected: %d).\n", provided_nonce, expected_nonce);
+        return 0;
+    }
+
+    // 2. BALANCE VALIDATION
+    if (sender->balance < (amount + fee)) {
+        printf("ERROR: Transaction rejected. Insufficient balance (Balance: %d, Required: %d).\n", sender->balance, amount + fee);
+        return 0;
+    }
+
+    // 3. EXECUTE TRANSFER
+    sender->balance -= (amount + fee);
+    recipient->balance += amount;
+    sender->nonce++; // Increment nonce upon successful outgoing transaction
+
+    // 4. LOG TRANSACTION HISTORY (For Sender)
+    TransactionRecord* tx_sender = (TransactionRecord*)malloc(sizeof(TransactionRecord));
+    strcpy(tx_sender->sender_id, sender_id);
+    strcpy(tx_sender->recipient_id, recipient_id);
+    tx_sender->amount = amount;
+    tx_sender->fee = fee;
+    tx_sender->nonce = sender->nonce;
+    
+    tx_sender->next = sender->history_head;
+    sender->history_head = tx_sender;
+
+    // 5. LOG TRANSACTION HISTORY (For Recipient)
+    TransactionRecord* tx_recipient = (TransactionRecord*)malloc(sizeof(TransactionRecord));
+    *tx_recipient = *tx_sender; // Copy data
+    tx_recipient->next = recipient->history_head;
+    recipient->history_head = tx_recipient;
+
+    printf("SUCCESS: %d tokens transferred from %s to %s (Fee: %d). Sender new nonce: %d\n", 
+           amount, sender_id, recipient_id, fee, sender->nonce);
+    return 1;
+}
+
+void view_transaction_history(const char* student_id) {
+    if (active_ledger_model != 2) {
+        printf("ERROR: Transaction history is only available in the Account-Based Model.\n");
+        return;
+    }
+
+    Account* current = account_list_head;
+    while (current != NULL) {
+        if (strcmp(current->student_id, student_id) == 0) {
+            printf("\n--- TRANSACTION HISTORY FOR %s ---\n", student_id);
+            printf("Current Balance: %d | Current Outgoing Nonce: %d\n", current->balance, current->nonce);
+            
+            TransactionRecord* tx = current->history_head;
+            if (tx == NULL) {
+                printf("No transactions found for this account.\n");
+            } else {
+                printf("%-10s | %-10s | %-6s | %-3s | %-5s\n", "Sender", "Recipient", "Amount", "Fee", "Nonce");
+                printf("----------------------------------------------------\n");
+                while (tx != NULL) {
+                    printf("%-10s | %-10s | %-6d | %-3d | %-5d\n", 
+                           tx->sender_id, tx->recipient_id, tx->amount, tx->fee, tx->nonce);
+                    tx = tx->next;
+                }
+            }
+            printf("----------------------------------------------------\n");
+            return;
+        }
+        current = current->next;
+    }
+    printf("ERROR: Account not found for %s\n", student_id);
+}
+
 // --- PUSH TO MEMPOOL ---
 int mark_attendance(const char* student_id, const char* course_code, const char* status) {
     // 1. Validate the Student ID against our loaded registry
