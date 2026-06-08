@@ -56,7 +56,7 @@ void calculate_hash(Block* block, char* output_hash) {
     char data[1024];
     unsigned char hash[SHA256_DIGEST_LENGTH];
 
-    // FIX: Concatenate block data for hashing, NOW INCLUDING token_reward and nonce
+    // Concatenate block data for hashing, NOW INCLUDING token_reward and nonce
     snprintf(data, sizeof(data), "%d%ld%s%s%s%s%s%d%d", 
             block->index, 
             block->timestamp, 
