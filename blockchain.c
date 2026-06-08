@@ -336,6 +336,107 @@ void print_account_balances() {
     printf("------------------------\n");
 }
 
+int transfer_utxo(const char* sender_id, const char* recipient_id, int amount) {
+    if (active_ledger_model != 1) {
+        printf("ERROR: UTXO transfers are only supported in the UTXO Model.\n");
+        return 0;
+    }
+
+    if (strcmp(sender_id, recipient_id) == 0) {
+        printf("ERROR: Cannot transfer to self.\n");
+        return 0;
+    }
+
+    int fee = 1;
+    int required_total = amount + fee;
+    
+    // 1. FIRST PASS: Verify if the sender has enough unspent tokens
+    int total_available = 0;
+    UTXO* current = utxo_set_head;
+    while (current != NULL) {
+        if (strcmp(current->owner_id, sender_id) == 0) {
+            total_available += current->amount;
+        }
+        current = current->next;
+    }
+
+    if (total_available < required_total) {
+        printf("ERROR: Transaction rejected. Insufficient UTXOs (Available: %d, Required: %d).\n", total_available, required_total);
+        return 0;
+    }
+
+    // 2. SECOND PASS: Consume the necessary UTXOs
+    int accumulated_sum = 0;
+    current = utxo_set_head;
+    UTXO* previous = NULL;
+
+    while (current != NULL && accumulated_sum < required_total) {
+        if (strcmp(current->owner_id, sender_id) == 0) {
+            accumulated_sum += current->amount;
+
+            // Remove the consumed UTXO from the linked list
+            UTXO* temp = current;
+            if (previous == NULL) {
+                utxo_set_head = current->next;
+            } else {
+                previous->next = current->next;
+            }
+            current = current->next;
+            free(temp); // Destroy the consumed UTXO memory
+        } else {
+            previous = current;
+            current = current->next;
+        }
+    }
+
+    // Generate a new pseudo-transaction ID by hashing the transfer data
+    char new_tx_id[65];
+    char data_to_hash[256];
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    snprintf(data_to_hash, sizeof(data_to_hash), "%s%s%d%ld", sender_id, recipient_id, amount, time(NULL));
+    SHA256((unsigned char*)data_to_hash, strlen(data_to_hash), hash);
+    
+    for(int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+        sprintf(new_tx_id + (i * 2), "%02x", hash[i]);
+    }
+    new_tx_id[64] = '\0';
+
+    // 3. CREATE OUTPUT: The recipient's new UTXO
+    UTXO* out_utxo = (UTXO*)malloc(sizeof(UTXO));
+    strncpy(out_utxo->transaction_id, new_tx_id, 64);
+    out_utxo->transaction_id[64] = '\0';
+    strncpy(out_utxo->owner_id, recipient_id, 19);
+    out_utxo->owner_id[19] = '\0';
+    out_utxo->amount = amount;
+    
+    out_utxo->next = utxo_set_head;
+    utxo_set_head = out_utxo;
+
+    // 4. CREATE CHANGE: Return the excess to the sender (if any)
+    int change = accumulated_sum - required_total;
+    if (change > 0) {
+        UTXO* change_utxo = (UTXO*)malloc(sizeof(UTXO));
+        // Append "_C" to differentiate the change UTXO hash visually
+        snprintf(change_utxo->transaction_id, 65, "%.62s_C", new_tx_id); 
+        strncpy(change_utxo->owner_id, sender_id, 19);
+        change_utxo->owner_id[19] = '\0';
+        change_utxo->amount = change;
+        
+        change_utxo->next = utxo_set_head;
+        utxo_set_head = change_utxo;
+    }
+
+    printf("\nSUCCESS: %d tokens transferred from %s to %s via UTXO (Fee: %d).\n", amount, sender_id, recipient_id, fee);
+    if (change > 0) {
+        printf("         Change UTXO created for %s: %d tokens.\n", sender_id, change);
+    }
+    
+    // Display the full set as required
+    print_utxo_set();
+
+    return 1;
+}
+
 int transfer_tokens(const char* sender_id, const char* recipient_id, int amount, int provided_nonce) {
     if (active_ledger_model != 2) {
         printf("ERROR: Manual transfers are only supported in the Account-Based Model.\n");
