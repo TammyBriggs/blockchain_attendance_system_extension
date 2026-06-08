@@ -669,6 +669,12 @@ void mine_pool() {
 }
 
 void mine_cloud(int rental_rounds) {
+    // 1. Check if there is actually anything to mine first
+    if (pending_pool_head == NULL) {
+        printf("\nPending pool is empty. No blocks to mine via cloud.\n");
+        return;
+    }
+
     printf("\n--- CLOUD MINING CONTRACT: %d ROUNDS ---\n", rental_rounds);
     
     if (rental_rounds < 1 || rental_rounds > 5) {
@@ -676,6 +682,10 @@ void mine_cloud(int rental_rounds) {
         return;
     }
 
+    // 2. Execute the mining process using the rented cloud power!
+    mine_solo();
+
+    // 3. Calculate the economics of the rental contract
     float rental_fee_per_round = 15.0; // Fixed cost
     float total_fees = 0;
     float gross_earnings = 0;
